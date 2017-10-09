@@ -1,0 +1,316 @@
+---
+title: "Logistic_Case"
+author: "Sumeet"
+date: "2 July 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+1 INTRODUCTION
+=============
+
+This is an R implementation for the given logistic case study, here exploratory data analysis is done to figure out the areas where there is reduction in volume for the recent month **May**.
+
+I'm mainly using *dplyr* package for data manipulation and *ggplot2* for data visualisation.  
+
+###1.1 Required libraries###
+
+
+```{r, message=FALSE}
+library('dplyr') # for data manipulation.
+library('ggplot2') # for data visualisation.
+library('grid') # for data visualisation
+```
+
+Loading of Data.
+```{r}
+xyz_data = read.csv('F:\\blue\\dummy.csv', header = T)
+```
+  
+Removing colume COMANY_GROUPCODE and ORG_AREA, since both of them has single value, that is data provided is of one customer whose GROUPCODE = 111111 and origin area is also one ORG_AREA = BDBLR.
+```{r}
+xyz_required = select(xyz_data, TOTAL, MONTH, DEST_AREA, WEIGHT, COD_PREPAID, DEST_PIN)
+```
+  
+###1.2 Feature Engineering###
+
+Let's multiply column TOTAL with WEIGHT which signifies normalization of the volume. for example if TOTAL = 10 & WEIGHT = 0.5 and if TOTAL = 5 and WEIGHT = 1, In both cases Total normalize volume should be 5. Let's look into our data too.
+```{r}
+new_xyz = xyz_required %>% mutate(WEIGHTED_TOTAL = TOTAL*WEIGHT)
+head(new_xyz)
+```
+Here:  
+*TOTAL:* showing total number of volume.  
+*MONTH:* having values from JAN to May.  
+*DEST_AREA* having destination area where volume is getting delivered.  
+*WEIGHT:* showing weight of the volume.  
+*DEST_PIN:* having different pins per destination area.  
+*WEIGHTED_TOTAL* showing normalied volume.  
+
+```{r, include=FALSE}
+options("scipen"=999)
+```
+
+2 ANALYSIS & INSIGHTS
+====================
+
+Let's look into the overall trend on volume.  
+```{r}
+a_sum = select(new_xyz, MONTH, WEIGHTED_TOTAL) %>%
+  group_by(MONTH)%>%
+  summarise(sum(WEIGHTED_TOTAL))
+
+colnames(a_sum) = c('MONTH','SUM_TOTAL')
+
+ggplot(a_sum,aes(MONTH,SUM_TOTAL,label=SUM_TOTAL)) +
+  geom_bar(stat='identity',fill = 'blue', colour = "black") +
+  geom_line(aes(group=1), colour="black") +
+  geom_point(size=3, colour="red") +
+  theme(legend.position = "none")
+```
+  
+We can see overall trend is increasing from Jan to May. Now let's look into data with COD_PREPAID wise.  
+
+```{r}
+b_sum = select(new_xyz, MONTH,COD_PREPAID, WEIGHTED_TOTAL) %>%
+  group_by(MONTH,COD_PREPAID) %>%
+  summarise(sum(WEIGHTED_TOTAL))
+
+colnames(b_sum) = c('MONTH','COD_PREPAID','SUM_TOTAL')
+
+ggplot(b_sum,aes(MONTH,SUM_TOTAL, fill=COD_PREPAID, label=SUM_TOTAL)) +
+  geom_bar(stat='identity',position = 'dodge')
+```
+  
+We can see prepaid customers 1st decreases from Jan to Feb, then increases from Feb to May.  
+
+Now let's segregate the data month wise, which will help us on analyzing the performance of every destination area on monthly basis.  
+```{r}
+#Monthwise data for all the DEST_AREA
+jan_data =select(new_xyz, MONTH, DEST_AREA, COD_PREPAID, DEST_PIN, WEIGHTED_TOTAL) %>%
+  filter(MONTH =='01-01-2017')
+feb_data =select(new_xyz, MONTH, DEST_AREA, COD_PREPAID, DEST_PIN, WEIGHTED_TOTAL) %>%
+  filter(MONTH =='01-02-2017')          
+mar_data =select(new_xyz, MONTH, DEST_AREA, COD_PREPAID, DEST_PIN, WEIGHTED_TOTAL) %>%
+  filter(MONTH =='01-03-2017')          
+apr_data =select(new_xyz, MONTH, DEST_AREA, COD_PREPAID, DEST_PIN, WEIGHTED_TOTAL) %>%
+  filter(MONTH =='01-04-2017') 
+may_data =select(new_xyz, MONTH, DEST_AREA, COD_PREPAID, DEST_PIN, WEIGHTED_TOTAL) %>%
+  filter(MONTH =='01-05-2017')
+
+```
+
+
+Let's group the data on destination areas, it will help us to figure out which are all the destinations showing reduction in volume in recent month.  
+
+```{r}
+####Jan month analysis per dest_area w.r.t area####
+sum_vol_jan = jan_data %>% group_by(DEST_AREA) %>% summarise(sum(WEIGHTED_TOTAL))
+colnames(sum_vol_jan) = c('DEST_AREA','sum_jan')
+
+####feb month analysis per dest_area w.r.t area####
+sum_vol_feb = feb_data %>% group_by(DEST_AREA) %>% summarise(sum(WEIGHTED_TOTAL))
+colnames(sum_vol_feb) = c('DEST_AREA','sum_feb')
+
+####march month analysis per dest_area w.r.t area####
+sum_vol_mar = mar_data %>% group_by(DEST_AREA) %>% summarise(sum(WEIGHTED_TOTAL))
+colnames(sum_vol_mar) = c('DEST_AREA','sum_mar')
+
+####april month analysis per dest_area w.r.t area####
+sum_vol_apr = apr_data %>% group_by(DEST_AREA) %>% summarise(sum(WEIGHTED_TOTAL))
+colnames(sum_vol_apr) = c('DEST_AREA','sum_apr')
+
+####may month analysis per dest_area w.r.t area####
+sum_vol_may = may_data %>% group_by(DEST_AREA) %>% summarise(sum(WEIGHTED_TOTAL))
+colnames(sum_vol_may) = c('DEST_AREA','sum_may')
+
+##Let's merge whole data into one data frame
+sum_per_month = merge(x = sum_vol_jan, y = sum_vol_feb, by = "DEST_AREA", all = TRUE)
+sum_per_month = merge(x = sum_per_month, y = sum_vol_mar, by = "DEST_AREA", all = TRUE)
+sum_per_month = merge(x = sum_per_month, y = sum_vol_apr, by = "DEST_AREA", all = TRUE)
+sum_per_month = merge(x = sum_per_month, y = sum_vol_may, by = "DEST_AREA", all = TRUE)
+head(sum_per_month)
+```
+
+Here we can see missing values corresponding to few months for destinations. considering that if NA is present means no volume is delivered in those periods. Hence removing all NA's with zero.  
+```{r}
+sum_per_month[is.na(sum_per_month)] <- 0
+head(sum_per_month)
+```
+
+Let's figure out the maximum value for each row out of 5 columns and then we will subtract our *May* data from it to find those areas where volume is reduced in *May*.  
+
+```{r}
+sum_per_month[,'max_value'] = apply(sum_per_month[,2:6],1,max)
+sum_per_month = sum_per_month %>% mutate(diff_max_may_sum = max_value - sum_may)
+nrow(sum_per_month %>% filter(diff_max_may_sum > 0))
+```
+
+  
+We can see there are total 512 destination area which are showing reduction in volume, from it's maximum volume delivered.  
+Let's look top 12 destination which are showing maximum reduction.
+
+```{r, warning=FALSE}
+xyz = t(select(sum_per_month,DEST_AREA,sum_jan, sum_feb,sum_mar,sum_apr,sum_may,diff_max_may_sum) %>%
+  arrange(desc(diff_max_may_sum)) %>%
+  head(12))
+
+colnames(xyz) = xyz['DEST_AREA',]
+
+xyz = cbind(rownames(xyz),xyz)
+rownames(xyz) = NULL
+colnames(xyz)[1] = c('SUM')
+xyz = data.frame(xyz)
+
+xyz[,2:13] <- lapply(xyz[,2:13], function(x) as.numeric(as.character(x)))
+```
+  
+```{r, include=FALSE}
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  require(grid)
+  
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+  
+  numPlots = length(plots)
+  
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                     ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+  
+  if (numPlots==1) {
+    print(plots[[1]])
+    
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+    
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+      
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
+}
+```
+
+Let's create a dashboard for these 12 destinations. 
+```{r, warning=FALSE}
+xyz$SUM = factor(xyz$SUM, levels = c('sum_jan','sum_feb','sum_feb','sum_mar','sum_apr','sum_may','diff_max_may_sum'))
+abc = xyz[-6,]
+BDPAT = ggplot(abc,aes(abc$SUM,abc$BDPAT)) +
+  geom_bar(stat='identity',fill = 'blue', colour = "black") +
+  geom_line(aes(group=1), colour="black") +
+  geom_point(size=3, colour="red") +
+  theme(legend.position = "none") +
+  labs(x = 'BDPAT', y = 'volume Sum')
+
+BDDEL = ggplot(abc,aes(abc$SUM,abc$BDDEL)) +
+  geom_bar(stat='identity',fill = 'blue', colour = "black") +
+  geom_line(aes(group=1), colour="black") +
+  geom_point(size=3, colour="red") +
+  theme(legend.position = "none") +
+  labs(x = 'BDDEL', y = 'volume Sum')
+
+BDTMK = ggplot(abc,aes(abc$SUM,abc$BDTMK)) +
+  geom_bar(stat='identity',fill = 'blue', colour = "black") +
+  geom_line(aes(group=1), colour="black") +
+  geom_point(size=3, colour="red") +
+  theme(legend.position = "none") +
+  labs(x = 'BDTMK', y = 'volume Sum')
+
+BDMAA = ggplot(abc,aes(abc$SUM,abc$BDMAA)) +
+  geom_bar(stat='identity',fill = 'blue', colour = "black") +
+  geom_line(aes(group=1), colour="black") +
+  geom_point(size=3, colour="red") +
+  theme(legend.position = "none") +
+  labs(x = 'BDMAA', y = 'volume Sum')
+
+BDHYD = ggplot(abc,aes(abc$SUM,abc$BDHYD)) +
+  geom_bar(stat='identity',fill = 'blue', colour = "black") +
+  geom_line(aes(group=1), colour="black") +
+  geom_point(size=3, colour="red") +
+  theme(legend.position = "none") +
+  labs(x = 'BDHYD', y = 'volume Sum')
+
+BDFHB = ggplot(abc,aes(abc$SUM,abc$BDFHB)) +
+  geom_bar(stat='identity',fill = 'blue', colour = "black") +
+  geom_line(aes(group=1), colour="black") +
+  geom_point(size=3, colour="red") +
+  theme(legend.position = "none") +
+  labs(x = 'BDFHB', y = 'volume Sum')
+
+BDBHW = ggplot(abc,aes(abc$SUM,abc$BDBHW)) +
+  geom_bar(stat='identity',fill = 'blue', colour = "black") +
+  geom_line(aes(group=1), colour="black") +
+  geom_point(size=3, colour="red") +
+  theme(legend.position = "none") +
+  labs(x = 'BDBHW', y = 'volume Sum')
+
+BDADM = ggplot(abc,aes(abc$SUM,abc$BDADM)) +
+  geom_bar(stat='identity',fill = 'blue', colour = "black") +
+  geom_line(aes(group=1), colour="black") +
+  geom_point(size=3, colour="red") +
+  theme(legend.position = "none") +
+  labs(x = 'BDADM', y = 'volume Sum')
+
+BDRAN = ggplot(abc,aes(abc$SUM,abc$BDRAN)) +
+  geom_bar(stat='identity',fill = 'blue', colour = "black") +
+  geom_line(aes(group=1), colour="black") +
+  geom_point(size=3, colour="red") +
+  theme(legend.position = "none") +
+  labs(x = 'BDRAN', y = 'volume Sum')
+
+BDJND = ggplot(abc,aes(abc$SUM,abc$BDJND)) +
+  geom_bar(stat='identity',fill = 'blue', colour = "black") +
+  geom_line(aes(group=1), colour="black") +
+  geom_point(size=3, colour="red") +
+  theme(legend.position = "none") +
+  labs(x = 'BDJND', y = 'volume Sum')
+
+BDNSK = ggplot(abc,aes(abc$SUM,abc$BDNSK)) +
+  geom_bar(stat='identity',fill = 'blue', colour = "black") +
+  geom_line(aes(group=1), colour="black") +
+  geom_point(size=3, colour="red") +
+  theme(legend.position = "none") +
+  labs(x = 'BDNSK', y = 'volume Sum')
+
+BDGGN = ggplot(abc,aes(abc$SUM,abc$BDGGN)) +
+  geom_bar(stat='identity',fill = 'blue', colour = "black") +
+  geom_line(aes(group=1), colour="black") +
+  geom_point(size=3, colour="red") +
+  theme(legend.position = "none") +
+  labs(x = 'BDJND', y = 'volume Sum')
+
+layout = matrix(c(1,2,3,4,5,6,7,8,9,10,11,12),4,3,byrow=TRUE)
+
+multiplot(BDPAT,BDDEL,BDTMK,BDMAA,BDHYD,BDFHB,BDBHW,BDADM,BDRAN,BDJND,BDNSK,BDGGN, layout=layout)
+```
+
+3 CONCLUSION
+==========
+
+We are concluding our analysis here and can clearly see despite there is an increase in overall volume delivery for five months, In May there are 512 areas which are showing reduction in volume. We should focus on attracting more prepaid customer, since we can see little similarity between overall volume trend and prepaid customer trend.
+
+<!-- This is an R Markdown  document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>. -->
+
+<!-- When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this: -->
+
+<!-- ```{r message=F} -->
+<!-- ~~~~~~~~~~~~~ -->
+<!-- summary(cars) -->
+<!-- ~~~~~~~~~~~~~ -->
+<!-- ``` -->
+
